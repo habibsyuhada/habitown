@@ -28,7 +28,7 @@ module.exports = {
         use: ['style-loader', 'css-loader'],
       },
       {
-        test: /\.(png|jpe?g|gif)$/i,
+        test: /\.(png|jpe?g|gif|svg)$/i,
         use: ['url-loader'],
       },
       {
@@ -45,6 +45,7 @@ module.exports = {
     alias: {
       'react-native$': 'react-native-web',
       'react-native-vector-icons': 'react-native-vector-icons/dist',
+      'react-native-svg': 'react-native-svg-web',
     },
   },
   plugins: [

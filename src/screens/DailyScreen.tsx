@@ -1,128 +1,148 @@
 import React, { useState } from 'react';
 import {
   View,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Modal,
   Text,
+  TouchableOpacity,
+  StyleSheet,
   Platform,
+  FlatList,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useHabitStore } from '../store/habitStore';
-import HabitCard from '../components/HabitCard';
-import { Difficulty } from '../types/habit';
+import { useSelector, useDispatch } from 'react-redux';
+import {
+  selectDailyTasks,
+  toggleDailyTask,
+  deleteDailyTask,
+} from '../store/slices/dailyTasksSlice';
+import { DailyTask } from '../types/dailyTask';
+import IconComponent from '../components/IconComponent';
+import AddTaskScreen from './AddTaskScreen';
+import EditTaskScreen from './EditTaskScreen';
 
-const DailyScreen = () => {
-  const { habits, addHabit, toggleHabit, deleteHabit } = useHabitStore();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newHabit, setNewHabit] = useState({
-    title: '',
-    description: '',
-    difficulty: 'medium' as Difficulty,
-  });
-
-  const dailyHabits = habits.filter(habit => habit.type === 'daily');
-
-  const handleAddHabit = () => {
-    if (newHabit.title.trim()) {
-      addHabit({
-        ...newHabit,
-        type: 'daily',
-      });
-      setNewHabit({
-        title: '',
-        description: '',
-        difficulty: 'medium',
-      });
-      setModalVisible(false);
+const DifficultyBadge = ({ difficulty, completed }: { difficulty: DailyTask['difficulty']; completed?: boolean }) => {
+  const getBackgroundColor = () => {
+    if (completed) return '#e0e0e0';
+    
+    switch (difficulty) {
+      case 'easy':
+        return '#4CAF50';
+      case 'medium':
+        return '#FF9800';
+      case 'hard':
+        return '#F44336';
+      default:
+        return '#757575';
     }
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView>
-        {dailyHabits.map(habit => (
-          <HabitCard
-            key={habit.id}
-            habit={habit}
-            onToggle={() => toggleHabit(habit.id)}
-            onDelete={() => deleteHabit(habit.id)}
-          />
-        ))}
-      </ScrollView>
+    <View style={[styles.badge, { backgroundColor: getBackgroundColor() }]}>
+      <Text style={styles.badgeText}>{difficulty}</Text>
+    </View>
+  );
+};
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.8}>
-        <Icon name="plus" size={24} color="#fff" />
-      </TouchableOpacity>
-
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Daily Habit</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Habit Title"
-              value={newHabit.title}
-              onChangeText={text => setNewHabit({ ...newHabit, title: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Description (optional)"
-              value={newHabit.description}
-              onChangeText={text =>
-                setNewHabit({ ...newHabit, description: text })
-              }
-            />
-            <View style={styles.difficultyContainer}>
-              <Text style={styles.difficultyLabel}>Difficulty:</Text>
-              {(['trivial', 'easy', 'medium', 'hard'] as Difficulty[]).map(
-                difficulty => (
-                  <TouchableOpacity
-                    key={difficulty}
-                    style={[
-                      styles.difficultyButton,
-                      newHabit.difficulty === difficulty &&
-                        styles.difficultyButtonActive,
-                    ]}
-                    onPress={() =>
-                      setNewHabit({ ...newHabit, difficulty })
-                    }>
-                    <Text
-                      style={[
-                        styles.difficultyButtonText,
-                        newHabit.difficulty === difficulty &&
-                          styles.difficultyButtonTextActive,
-                      ]}>
-                      {difficulty}
-                    </Text>
-                  </TouchableOpacity>
-                ),
-              )}
-            </View>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}>
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.addButton]}
-                onPress={handleAddHabit}>
-                <Text style={[styles.buttonText, styles.addButtonText]}>Add</Text>
-              </TouchableOpacity>
-            </View>
+const TaskItem = ({
+  task,
+  onToggle,
+  onEdit,
+}: {
+  task: DailyTask;
+  onToggle: () => void;
+  onEdit: () => void;
+}) => {
+  return (
+    <View style={[styles.taskItem, task.completed && styles.taskItemCompleted]}>
+      <TouchableOpacity style={styles.taskContent} onPress={onToggle}>
+        <View style={styles.checkboxContainer}>
+          <View style={[styles.checkbox, task.completed && styles.checkboxCompleted]}>
+            {task.completed && <IconComponent name="check" size={16} color="#fff" />}
           </View>
         </View>
-      </Modal>
+        <View style={styles.taskDetails}>
+          <Text style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}>
+            {task.title}
+          </Text>
+          <View style={styles.taskInfo}>
+            <DifficultyBadge difficulty={task.difficulty} completed={task.completed} />
+            <Text style={[styles.streak, task.completed && styles.textCompleted]}>
+              🔥 {task.streak}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.actionButton, styles.editButton]} 
+        onPress={onEdit}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <IconComponent 
+          name="pencil" 
+          size={20} 
+          color="#6200ee"
+        />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const DailyScreen = () => {
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const tasks = useSelector(selectDailyTasks);
+  const dispatch = useDispatch();
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const handleToggleTask = (taskId: string) => {
+    dispatch(toggleDailyTask(taskId));
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    dispatch(deleteDailyTask(taskId));
+    setEditingTaskId(null); // Close edit screen after delete
+  };
+
+  if (showAddTask) {
+    return <AddTaskScreen onClose={() => setShowAddTask(false)} />;
+  }
+
+  if (editingTaskId) {
+    return (
+      <EditTaskScreen 
+        taskId={editingTaskId} 
+        onClose={() => setEditingTaskId(null)}
+        onDelete={() => handleDeleteTask(editingTaskId)}
+      />
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.date}>{today}</Text>
+        <TouchableOpacity
+          style={styles.headerAddButton}
+          onPress={() => setShowAddTask(true)}>
+          <IconComponent name="plus" size={24} color="#6200ee" />
+        </TouchableOpacity>
+      </View>
+
+      <FlatList<DailyTask>
+        style={styles.taskList}
+        data={tasks}
+        keyExtractor={item => item.id}
+        renderItem={({ item }) => (
+          <TaskItem
+            task={item}
+            onToggle={() => handleToggleTask(item.id)}
+            onEdit={() => setEditingTaskId(item.id)}
+          />
+        )}
+      />
     </View>
   );
 };
@@ -132,106 +152,142 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: '#6200ee',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 5,
+        elevation: 4,
       },
       web: {
-        cursor: 'pointer',
-        boxShadow: '0 2px 5px rgba(0,0,0,0.25)',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
       },
     }),
   },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    width: '90%',
-    maxWidth: 400,
-  },
-  modalTitle: {
+  date: {
     fontSize: 20,
     fontWeight: '600',
-    marginBottom: 16,
-    color: '#212121',
+    color: '#1a1a1a',
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 4,
+  headerAddButton: {
     padding: 8,
-    marginBottom: 16,
-    fontSize: 16,
   },
-  difficultyContainer: {
-    marginBottom: 16,
+  taskList: {
+    flex: 1,
+    padding: 16,
   },
-  difficultyLabel: {
-    fontSize: 16,
-    marginBottom: 8,
-    color: '#212121',
-  },
-  difficultyButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    marginRight: 8,
-    backgroundColor: '#f5f5f5',
-    marginBottom: 8,
-  },
-  difficultyButtonActive: {
-    backgroundColor: '#6200ee',
-  },
-  difficultyButtonText: {
-    color: '#757575',
-  },
-  difficultyButtonTextActive: {
-    color: '#fff',
-  },
-  modalButtons: {
+  taskItem: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+      web: {
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      },
+    }),
   },
-  button: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 4,
-    marginLeft: 8,
-  },
-  cancelButton: {
+  taskItemCompleted: {
     backgroundColor: '#f5f5f5',
+    ...Platform.select({
+      ios: {
+        shadowOpacity: 0.05,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+      },
+    }),
   },
-  addButton: {
-    backgroundColor: '#6200ee',
+  taskContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  buttonText: {
+  checkboxContainer: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#6200ee',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxCompleted: {
+    backgroundColor: '#9e9e9e',
+    borderColor: '#9e9e9e',
+  },
+  taskDetails: {
+    flex: 1,
+  },
+  taskTitle: {
     fontSize: 16,
-    color: '#757575',
+    marginBottom: 4,
+    color: '#1a1a1a',
   },
-  addButtonText: {
+  taskTitleCompleted: {
+    color: '#9e9e9e',
+  },
+  textCompleted: {
+    color: '#9e9e9e',
+  },
+  taskInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  streak: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#1a1a1a',
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
+  editButton: {
+    backgroundColor: '#f0e6ff',
+    borderWidth: 1,
+    borderColor: '#6200ee',
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  badgeText: {
     color: '#fff',
+    fontSize: 12,
+    textTransform: 'capitalize',
   },
 });
 
